@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexo-infra"
-version = "0.0.1"
+version = "0.0.4"
 description = "Infra package for Nexo"
 authors = [
-    { name = "Agra Bima Yuda", email = "agra@nexmedis.com" }
+    { name = "Agra Bima Yuda", email = "hub.agrayuda@gmail.com" }
 ]
 license = { text = "Proprietary"}
 readme = "README.md"
@@ -48,12 +48,12 @@ dependencies = [
     "importlib_metadata>=8.7.0",
     "iniconfig>=2.1.0",
     "mypy_extensions>=1.1.0",
-    "nexo-crypto>=0.0.2",
-    "nexo-enums>=0.0.2",
-    "nexo-logging>=0.0.3",
-    "nexo-schemas>=0.0.1",
-    "nexo-types>=0.0.2",
-    "nexo-utils>=0.0.2",
+    "nexo-crypto>=0.0.4",
+    "nexo-enums>=0.0.4",
+    "nexo-logging>=0.0.4",
+    "nexo-schemas>=0.0.4",
+    "nexo-types>=0.0.4",
+    "nexo-utils>=0.0.4",
     "nodeenv>=1.9.1",
     "opentelemetry-api>=1.37.0",
     "opentelemetry-sdk>=1.37.0",
