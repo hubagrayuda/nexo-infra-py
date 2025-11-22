@@ -1,0 +1,23 @@
+resource:
+  measurement:
+    frequency:
+      log: 60
+      publish: 1
+      websocket: 1
+    interval: 5.0
+    window: 5
+    retention: 3600
+  usage:
+    cpu:
+      threshold:
+        low: 10.0
+        normal: 75.0
+        high: 85.0
+        critical: 95.0
+    memory:
+      limit: 256.0
+      threshold:
+        low: 10.0
+        normal: 75.0
+        high: 85.0
+        critical: 95.0
