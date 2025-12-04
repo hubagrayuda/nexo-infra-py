@@ -36,7 +36,7 @@ mypy_extensions==1.1.0
 nexo-crypto==0.0.5
 nexo-enums==0.0.5
 nexo-logging==0.0.5
-nexo-schemas==0.0.5
+nexo-schemas==0.0.6
 nexo-types==0.0.5
 nexo-utils==0.0.5
 nodeenv==1.9.1
