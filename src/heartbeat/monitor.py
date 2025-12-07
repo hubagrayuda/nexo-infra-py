@@ -129,7 +129,6 @@ class HeartbeatMonitor:
 
         heartbeat = Heartbeat(
             started_at=self.started_at,
-            uptime=(executed_at - self.started_at).total_seconds(),
             checked_at=executed_at,
             request=request,
         )
@@ -146,10 +145,7 @@ class HeartbeatMonitor:
             context=self.operation_context,
             action=self.operation_action,
             timestamp=timestamp,
-            summary=(
-                f"Successfully checked heartbeat - Uptime: {heartbeat.uptime}s"
-                f" - Request | Status: {heartbeat.request.status} | Total: {heartbeat.request.total} | Avg Latency (s): {heartbeat.request.latency.avg}"
-            ),
+            summary=f"Successfully checked heartbeat - Uptime: {heartbeat.uptime.stringify()} - {heartbeat.request.string_summary}",
             connection_context=None,
             authentication=None,
             authorization=None,
@@ -215,7 +211,6 @@ class HeartbeatMonitor:
 
         heartbeat = Heartbeat(
             started_at=self.started_at,
-            uptime=(executed_at - self.started_at).total_seconds(),
             checked_at=executed_at,
             request=request,
         )
@@ -230,10 +225,7 @@ class HeartbeatMonitor:
             context=self.operation_context,
             action=self.operation_action,
             timestamp=timestamp,
-            summary=(
-                f"Successfully checked heartbeat - Uptime: {heartbeat.uptime}s"
-                f" - Request | Status: {heartbeat.request.status} | Total: {heartbeat.request.total} | Avg Latency (s): {heartbeat.request.latency.avg}"
-            ),
+            summary=f"Successfully checked heartbeat - Uptime: {heartbeat.uptime.stringify()} - {heartbeat.request.string_summary}",
             connection_context=connection_context,
             authentication=authentication,
             authorization=authorization,
