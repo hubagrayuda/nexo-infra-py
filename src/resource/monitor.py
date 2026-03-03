@@ -238,7 +238,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Used: {measurement.usage.memory.used:.2f}MB"
+                f" | Used: {measurement.usage.memory.used/(1024**2):.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=None,
@@ -480,7 +480,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.used:.2f}MB"
+                f" | Used: {measurement.usage.memory.used/(1024**2):.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
@@ -570,7 +570,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.used:.2f}MB"
+                f" | Used: {measurement.usage.memory.used/(1024**2):.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
@@ -641,7 +641,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.used:.2f}MB"
+                f" | Used: {measurement.usage.memory.used/(1024**2):.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
