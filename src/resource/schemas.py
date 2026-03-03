@@ -9,7 +9,7 @@ from nexo.types.dict import (
     OptStrToStrDict,
 )
 from nexo.types.integer import OptInt, OptIntT
-from .config import CPUUsageConfig, MemoryUsageConfig
+from .config import ThresholdConfig
 from .enums import (
     MeasurementType,
     OptMeasurementType,
@@ -35,15 +35,15 @@ class CPUUsage(BaseModel):
         *,
         raw: float,
         smooth: float,
-        config: CPUUsageConfig,
+        threshold: ThresholdConfig,
     ) -> "CPUUsage":
-        if smooth < config.threshold.low:
+        if smooth < threshold.low:
             status = Status.LOW
-        elif smooth < config.threshold.normal:
+        elif smooth < threshold.normal:
             status = Status.NORMAL
-        elif smooth < config.threshold.high:
+        elif smooth < threshold.high:
             status = Status.HIGH
-        elif smooth < config.threshold.critical:
+        elif smooth < threshold.critical:
             status = Status.CRITICAL
         else:
             status = Status.OVERLOAD
@@ -52,27 +52,28 @@ class CPUUsage(BaseModel):
 
 
 class MemoryUsage(BaseModel):
-    raw: Annotated[float, Field(..., description="Raw memory usage (MB)", ge=0.0)]
+    used: Annotated[int, Field(..., description="Memory used (bytes)", ge=0)]
+    limit: Annotated[int, Field(..., description="Memory limit (bytes)", ge=0)]
     percentage: Annotated[float, Field(..., description="Percentage of limit", ge=0.0)]
     status: Annotated[Status, Field(Status.NORMAL, description="Usage status")] = (
         Status.NORMAL
     )
 
     @classmethod
-    def new(cls, raw: float, config: MemoryUsageConfig) -> "MemoryUsage":
-        percentage = (raw / config.limit) * 100
-        if percentage < config.threshold.low:
+    def new(cls, used: int, limit: int, threshold: ThresholdConfig) -> "MemoryUsage":
+        percentage = (used / limit) * 100
+        if percentage < threshold.low:
             status = Status.LOW
-        elif percentage < config.threshold.normal:
+        elif percentage < threshold.normal:
             status = Status.NORMAL
-        elif percentage < config.threshold.high:
+        elif percentage < threshold.high:
             status = Status.HIGH
-        elif percentage < config.threshold.critical:
+        elif percentage < threshold.critical:
             status = Status.CRITICAL
         else:
             status = Status.OVERLOAD
 
-        return cls(raw=raw, percentage=percentage, status=status)
+        return cls(used=used, limit=limit, percentage=percentage, status=status)
 
 
 class Usage(BaseModel):

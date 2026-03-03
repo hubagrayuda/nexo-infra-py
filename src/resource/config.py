@@ -50,32 +50,13 @@ class ThresholdConfig(BaseModel):
     critical: Annotated[float, Field(95.0, description="Critical", ge=0.0)] = 95.0
 
 
-class CPUUsageConfig(BaseModel):
-    threshold: Annotated[
-        ThresholdConfig, Field(ThresholdConfig(), description="Threshold")
+class ThresholdsConfig(BaseModel):
+    cpu: Annotated[
+        ThresholdConfig, Field(ThresholdConfig(), description="CPU Threshold")
     ] = ThresholdConfig()
-
-
-class MemoryUsageConfig(BaseModel):
-    limit: Annotated[
-        float,
-        Field(
-            256.0, description="Memory limit (MB) applied to raw memory value", ge=0.0
-        ),
-    ] = 256.0
-    threshold: Annotated[
-        ThresholdConfig, Field(ThresholdConfig(), description="Threshold")
-    ] = ThresholdConfig()
-
-
-class UsageConfig(BaseModel):
-    cpu: Annotated[CPUUsageConfig, Field(CPUUsageConfig(), description="CPU Usage")] = (
-        CPUUsageConfig()
-    )
     memory: Annotated[
-        MemoryUsageConfig,
-        Field(MemoryUsageConfig, description="Memory Usage"),
-    ] = MemoryUsageConfig()
+        ThresholdConfig, Field(ThresholdConfig(), description="Memory Threshold")
+    ] = ThresholdConfig()
 
 
 class ResourceConfig(BaseModel):
@@ -83,13 +64,14 @@ class ResourceConfig(BaseModel):
         MeasurementConfig,
         Field(
             MeasurementConfig,
-            description="Resource usage configuration",
+            description="Resource measurement configuration",
         ),
     ] = MeasurementConfig()
 
-    usage: Annotated[UsageConfig, Field(UsageConfig(), description="Usage config")] = (
-        UsageConfig()
-    )
+    thresholds: Annotated[
+        ThresholdsConfig,
+        Field(ThresholdsConfig(), description="Resource thresholds configuration"),
+    ] = ThresholdsConfig()
 
 
 class ResourceConfigMixin(BaseModel):

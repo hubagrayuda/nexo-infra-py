@@ -28,6 +28,7 @@ from nexo.schemas.response import (
 from nexo.schemas.security.authentication import OptAnyAuthentication
 from nexo.schemas.security.authorization import OptAnyAuthorization
 from nexo.schemas.security.impersonation import OptImpersonation
+from nexo.types.integer import OptInt
 from nexo.types.uuid import OptUUID
 from nexo.utils.exception import extract_details
 from .config import ResourceConfig
@@ -68,6 +69,7 @@ class ResourceMonitor:
         self.operation_publishers = operation_publishers
         self.process = psutil.Process(os.getpid())
         self.cpu_window = deque(maxlen=self.config.measurement.window)
+        self.memory_limit = self._get_memory_limit()
 
         # Store historical data with timestamps
         self.measurement_history: deque[RegularMeasurement] = deque[
@@ -83,6 +85,36 @@ class ResourceMonitor:
         self.operation_action = SystemOperationAction(
             type=SystemOperationType.METRIC_REPORT, details={"type": "resource"}
         )
+
+    def _get_container_memory_limit(self) -> OptInt:
+        # cgroup v2
+        try:
+            with open("/sys/fs/cgroup/memory.max") as f:
+                value = f.read().strip()
+                if value != "max":
+                    return int(value)
+        except Exception:
+            pass
+
+        # cgroup v1
+        try:
+            with open("/sys/fs/cgroup/memory/memory.limit_in_bytes") as f:
+                return int(f.read().strip())
+        except Exception:
+            pass
+
+        return None
+
+    def _get_memory_limit(self) -> int:
+        vm = psutil.virtual_memory()
+
+        os_limit = vm.total
+        container_limit = self._get_container_memory_limit()
+
+        if container_limit and container_limit < os_limit:
+            return container_limit
+        else:
+            return os_limit
 
     async def start_monitoring(self) -> None:
         """Start the resource monitoring loop."""
@@ -154,47 +186,6 @@ class ResourceMonitor:
         ):
             self.measurement_history.popleft()
 
-    def get_container_memory_limit(self):
-        # cgroup v2
-        try:
-            with open("/sys/fs/cgroup/memory.max") as f:
-                value = f.read().strip()
-                if value != "max":
-                    return int(value)
-        except Exception:
-            pass
-
-        # cgroup v1
-        try:
-            with open("/sys/fs/cgroup/memory/memory.limit_in_bytes") as f:
-                return int(f.read().strip())
-        except Exception:
-            pass
-
-        return None
-
-    def get_memory_stats(self):
-        vm = psutil.virtual_memory()
-        process = psutil.Process(os.getpid())
-
-        os_total = vm.total
-        container_limit = self.get_container_memory_limit()
-
-        if container_limit and container_limit < os_total:
-            effective_total = container_limit
-        else:
-            effective_total = os_total
-
-        process_rss = process.memory_info().rss
-
-        return {
-            "effective_total_gb": round(effective_total / (1024**3), 2),
-            "os_total_gb": round(os_total / (1024**3), 2),
-            "available_gb": round(vm.available / (1024**3), 2),
-            "process_rss_mb": round(process_rss / (1024**2), 2),
-            "process_percent_of_limit": round(process_rss / effective_total * 100, 2),
-        }
-
     async def _measure(self, log: bool = False, publish: bool = False):
         """Collect current resource usage and store in history."""
         executed_at = datetime.now(tz=timezone.utc)
@@ -206,10 +197,8 @@ class ResourceMonitor:
         self.cpu_window.append(raw_cpu)
         smooth_cpu = sum(self.cpu_window) / len(self.cpu_window)
 
-        print(self.get_memory_stats())
-
-        # Memory usage in MB
-        raw_memory = self.process.memory_info().rss / (1024 * 1024)
+        # Memory usage
+        used_memory = self.process.memory_info().rss
 
         timestamp = Timestamp.completed_now(executed_at)
 
@@ -217,9 +206,13 @@ class ResourceMonitor:
             measured_at=timestamp.completed_at,
             usage=Usage(
                 cpu=CPUUsage.new(
-                    raw=raw_cpu, smooth=smooth_cpu, config=self.config.usage.cpu
+                    raw=raw_cpu, smooth=smooth_cpu, threshold=self.config.thresholds.cpu
                 ),
-                memory=MemoryUsage.new(raw=raw_memory, config=self.config.usage.memory),
+                memory=MemoryUsage.new(
+                    used=used_memory,
+                    limit=self.memory_limit,
+                    threshold=self.config.thresholds.memory,
+                ),
             ),
         )
 
@@ -245,7 +238,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.raw:.2f}MB"
+                f" | Used: {measurement.usage.memory.used:.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=None,
@@ -449,7 +442,7 @@ class ResourceMonitor:
         # Calculate averages
         total_raw_cpu = sum(entry.usage.cpu.raw for entry in history_data)
         total_smooth_cpu = sum(entry.usage.cpu.smooth for entry in history_data)
-        total_memory = sum(entry.usage.memory.raw for entry in history_data)
+        total_memory = sum(entry.usage.memory.used for entry in history_data)
         count = len(history_data)
 
         timestamp = Timestamp.completed_now(executed_at)
@@ -461,10 +454,12 @@ class ResourceMonitor:
                 cpu=CPUUsage.new(
                     raw=total_raw_cpu / count,
                     smooth=total_smooth_cpu / count,
-                    config=self.config.usage.cpu,
+                    threshold=self.config.thresholds.cpu,
                 ),
                 memory=MemoryUsage.new(
-                    raw=total_memory / count, config=self.config.usage.memory
+                    used=int(total_memory / count),
+                    limit=self.memory_limit,
+                    threshold=self.config.thresholds.memory,
                 ),
             ),
         )
@@ -485,7 +480,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.raw:.2f}MB"
+                f" | Raw: {measurement.usage.memory.used:.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
@@ -538,7 +533,7 @@ class ResourceMonitor:
         # Find peaks
         peak_raw_cpu = max(entry.usage.cpu.raw for entry in history_data)
         peak_smooth_cpu = max(entry.usage.cpu.smooth for entry in history_data)
-        peak_raw_memory = max(entry.usage.memory.raw for entry in history_data)
+        peak_used_memory = max(entry.usage.memory.used for entry in history_data)
 
         timestamp = Timestamp.completed_now(executed_at)
 
@@ -549,10 +544,12 @@ class ResourceMonitor:
                 cpu=CPUUsage.new(
                     raw=peak_raw_cpu,
                     smooth=peak_smooth_cpu,
-                    config=self.config.usage.cpu,
+                    threshold=self.config.thresholds.cpu,
                 ),
                 memory=MemoryUsage.new(
-                    raw=peak_raw_memory, config=self.config.usage.memory
+                    used=peak_used_memory,
+                    limit=self.memory_limit,
+                    threshold=self.config.thresholds.memory,
                 ),
             ),
         )
@@ -573,7 +570,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.raw:.2f}MB"
+                f" | Raw: {measurement.usage.memory.used:.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
@@ -604,7 +601,7 @@ class ResourceMonitor:
         executed_at = datetime.now(tz=timezone.utc)
 
         raw_cpu = self.process.cpu_percent(interval=None)
-        raw_memory = self.process.memory_info().rss / (1024 * 1024)
+        used_memory = self.process.memory_info().rss
 
         # For instant reading, use the current smooth CPU from the window
         # or raw CPU if no history exists
@@ -618,9 +615,13 @@ class ResourceMonitor:
             measured_at=timestamp.completed_at,
             usage=Usage(
                 cpu=CPUUsage.new(
-                    raw=raw_cpu, smooth=smooth_cpu, config=self.config.usage.cpu
+                    raw=raw_cpu, smooth=smooth_cpu, threshold=self.config.thresholds.cpu
                 ),
-                memory=MemoryUsage.new(raw=raw_memory, config=self.config.usage.memory),
+                memory=MemoryUsage.new(
+                    used=used_memory,
+                    limit=self.memory_limit,
+                    threshold=self.config.thresholds.memory,
+                ),
             ),
         )
 
@@ -640,7 +641,7 @@ class ResourceMonitor:
                 f" | Raw: {measurement.usage.cpu.raw:.2f}%"
                 f" | Smooth: {measurement.usage.cpu.smooth:.2f}%"
                 f" - Memory | Status: {measurement.usage.memory.status}"
-                f" | Raw: {measurement.usage.memory.raw:.2f}MB"
+                f" | Raw: {measurement.usage.memory.used:.2f}MB"
                 f" | Percentage: {measurement.usage.memory.percentage:.2f}%"
             ),
             connection_context=connection_context,
