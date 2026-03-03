@@ -154,6 +154,47 @@ class ResourceMonitor:
         ):
             self.measurement_history.popleft()
 
+    def get_container_memory_limit(self):
+        # cgroup v2
+        try:
+            with open("/sys/fs/cgroup/memory.max") as f:
+                value = f.read().strip()
+                if value != "max":
+                    return int(value)
+        except Exception:
+            pass
+
+        # cgroup v1
+        try:
+            with open("/sys/fs/cgroup/memory/memory.limit_in_bytes") as f:
+                return int(f.read().strip())
+        except Exception:
+            pass
+
+        return None
+
+    def get_memory_stats(self):
+        vm = psutil.virtual_memory()
+        process = psutil.Process(os.getpid())
+
+        os_total = vm.total
+        container_limit = self.get_container_memory_limit()
+
+        if container_limit and container_limit < os_total:
+            effective_total = container_limit
+        else:
+            effective_total = os_total
+
+        process_rss = process.memory_info().rss
+
+        return {
+            "effective_total_gb": round(effective_total / (1024**3), 2),
+            "os_total_gb": round(os_total / (1024**3), 2),
+            "available_gb": round(vm.available / (1024**3), 2),
+            "process_rss_mb": round(process_rss / (1024**2), 2),
+            "process_percent_of_limit": round(process_rss / effective_total * 100, 2),
+        }
+
     async def _measure(self, log: bool = False, publish: bool = False):
         """Collect current resource usage and store in history."""
         executed_at = datetime.now(tz=timezone.utc)
@@ -164,6 +205,8 @@ class ResourceMonitor:
         # Update moving window for smoothing
         self.cpu_window.append(raw_cpu)
         smooth_cpu = sum(self.cpu_window) / len(self.cpu_window)
+
+        print(self.get_memory_stats())
 
         # Memory usage in MB
         raw_memory = self.process.memory_info().rss / (1024 * 1024)
