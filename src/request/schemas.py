@@ -22,7 +22,9 @@ class ErrorRate(BaseModel):
 
 class Latency(BaseModel):
     min: Annotated[float, Field(0.0, description="Min Latency", ge=0.0)] = 0.0
-    avg: Annotated[float, Field(0.0, description="Avg Latency", ge=0.0)] = 0.0
+    p50: Annotated[float, Field(0.0, description="p50 Latency", ge=0.0)] = 0.0
+    p90: Annotated[float, Field(0.0, description="p90 Latency", ge=0.0)] = 0.0
+    p99: Annotated[float, Field(0.0, description="p99 Latency", ge=0.0)] = 0.0
     max: Annotated[float, Field(0.0, description="Max Latency", ge=0.0)] = 0.0
 
 
@@ -72,5 +74,10 @@ class Summary(BaseModel):
             f"| Status: {self.status} "
             f"| Total: {self.total} "
             f"| Error; {client_error_str}; {server_error_str} "
-            f"| Latency; Min: {self.latency.min:.2f}s; Avg: {self.latency.avg:.2f}s; Max: {self.latency.max:.2f}s"
+            "| Latency; "
+            f"Min: {self.latency.min:.2f}s; "
+            f"p50: {self.latency.p50:.2f}s; "
+            f"p90: {self.latency.p90:.2f}s; "
+            f"p99: {self.latency.p99:.2f}s; "
+            f"Max: {self.latency.max:.2f}s"
         )

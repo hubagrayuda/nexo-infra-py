@@ -3,6 +3,7 @@ from collections import deque
 from datetime import datetime, timedelta, timezone
 from nexo.types.datetime import OptDatetime
 from .schemas import Record, Error, Latency, Summary
+from .utils import compute_percentiles
 
 
 class RequestMonitor:
@@ -37,6 +38,9 @@ class RequestMonitor:
         if not data:
             return Summary()  # type: ignore
 
+        latencies = [dt.latency for dt in data]
+        p50, p90, p99 = compute_percentiles(latencies, (50, 90, 99))
+
         return Summary(
             total=len(data),
             error=Error(
@@ -56,8 +60,10 @@ class RequestMonitor:
                 ),
             ),
             latency=Latency(
-                min=min([dt.latency for dt in data]),
-                avg=sum([dt.latency for dt in data]) / len(data),
-                max=max([dt.latency for dt in data]),
+                min=min(latencies),
+                p50=p50,
+                p90=p90,
+                p99=p99,
+                max=max(latencies),
             ),
         )
