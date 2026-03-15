@@ -9,9 +9,9 @@ class Record(BaseModel):
     status_code: Annotated[int, Field(..., description="Status Code", ge=100, le=600)]
     latency: Annotated[float, Field(0.0, description="Latency", ge=0.0)] = 0.0
 
-    @field_validator("duration", mode="before")
+    @field_validator("latency", mode="before")
     @classmethod
-    def non_negative_duration(cls, v: float) -> float:
+    def non_negative_latency(cls, v: float) -> float:
         if v is None:
             return 0.0
         return max(float(v), 0.0)
