@@ -1,5 +1,5 @@
 from datetime import datetime
-from pydantic import BaseModel, Field, computed_field, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 from typing import Annotated, Self
 from .enums import Status
 
@@ -8,6 +8,13 @@ class Record(BaseModel):
     requested_at: Annotated[datetime, Field(..., description="Requested At")]
     status_code: Annotated[int, Field(..., description="Status Code", ge=100, le=600)]
     latency: Annotated[float, Field(0.0, description="Latency", ge=0.0)] = 0.0
+
+    @field_validator("duration", mode="before")
+    @classmethod
+    def non_negative_duration(cls, v: float) -> float:
+        if v is None:
+            return 0.0
+        return max(float(v), 0.0)
 
 
 class Error(BaseModel):
