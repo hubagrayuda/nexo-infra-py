@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexo-infra"
-version = "0.1.20"
+version = "0.1.30"
 description = "Infra package for Nexo"
 authors = [
     { name = "Agra Bima Yuda", email = "hub.agrayuda@gmail.com" }
