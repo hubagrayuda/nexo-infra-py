@@ -1,13 +1,7 @@
-import json
 from datetime import datetime
 from google.cloud.pubsub_v1.subscriber.message import Message
 from pydantic import BaseModel, Field, model_validator
 from typing import Annotated, Generic, Literal, Self, TypeGuard, overload
-from nexo.types.dict import (
-    StrToAnyDict,
-    OptStrToAnyDict,
-    OptStrToStrDict,
-)
 from nexo.types.integer import OptInt, OptIntT
 from .config import ThresholdConfig
 from .enums import (
@@ -99,25 +93,6 @@ class GenericMeasurement(
     status: Annotated[Status, Field(..., description="Aggregate status")]
     usage: Annotated[Usage, Field(..., description="Resource usage")]
 
-    @property
-    def message_obj(self) -> StrToAnyDict:
-        return {
-            "type": self.type,
-            "aggregate_type": (
-                None
-                if self.aggregate_type is None
-                else {AggregateMeasurementType.__name__: self.aggregate_type}
-            ),
-            "measured_at": self.measured_at.isoformat(),
-            "window": None if self.window is None else {"int": self.window},
-            "status": self.status,
-            "usage": self.usage.model_dump(mode="json"),
-        }
-
-    @property
-    def message_bytes(self) -> bytes:
-        return json.dumps(self.message_obj).encode()
-
 
 class BaseMeasurement(
     GenericMeasurement[MeasurementType, OptAggregateMeasurementType, OptInt]
@@ -186,57 +161,6 @@ class BaseMeasurement(
             usage=usage,
         )
 
-    @classmethod
-    def from_message(cls, message: Message) -> "BaseMeasurement":
-        message_obj: StrToAnyDict = json.loads(message.data.decode())
-
-        for key in cls.model_fields.keys():
-            if key not in message_obj:
-                raise ValueError(f"Key '{key}' did not exist in the message")
-
-        # Parse aggregate type
-        aggregate_type: OptStrToStrDict = message_obj["aggregate_type"]
-        if aggregate_type is None:
-            aggregate_type_value = None
-        else:
-            if not (
-                isinstance(aggregate_type, dict)
-                and len(aggregate_type) == 1
-                and AggregateMeasurementType.__name__ in aggregate_type
-                and aggregate_type[AggregateMeasurementType.__name__]
-                in AggregateMeasurementType.choices()
-            ):
-                raise ValueError(
-                    f"Aggregate type must be a dict with single element, "
-                    f"key of '{AggregateMeasurementType.__name__}', "
-                    f"and value in {AggregateMeasurementType.choices()}"
-                )
-
-            aggregate_type_value = aggregate_type[AggregateMeasurementType.__name__]
-            aggregate_type_value = AggregateMeasurementType(aggregate_type_value)
-
-        message_obj["aggregate_type"] = aggregate_type_value
-
-        # Parse window
-        window: OptStrToAnyDict = message_obj["window"]
-        if window is None:
-            window_value = None
-        else:
-            if not (
-                isinstance(window, dict)
-                and len(window) == 1
-                and "int" in window
-                and isinstance(window["int"], int)
-            ):
-                raise ValueError(
-                    "Window must be a dict with single element and key of 'int' and integer value"
-                )
-            window_value = window["int"]
-
-        message_obj["window"] = window_value
-
-        return cls.model_validate(message_obj)
-
 
 class RegularMeasurement(
     GenericMeasurement[
@@ -264,33 +188,6 @@ class RegularMeasurement(
 
     def to_base(self) -> BaseMeasurement:
         return BaseMeasurement.model_validate(self.model_dump())
-
-    @classmethod
-    def from_message(cls, message: Message) -> "RegularMeasurement":
-        message_obj: StrToAnyDict = json.loads(message.data.decode())
-
-        for key in cls.model_fields.keys():
-            if key not in message_obj:
-                raise ValueError(f"Key '{key}' did not exist in the message")
-
-        # Parse type
-        type = message_obj["type"]
-        if type != MeasurementType.REGULAR.value:
-            raise ValueError(
-                f"Type must be {MeasurementType.REGULAR} for Regular Measurement"
-            )
-
-        # Parse aggregate type
-        aggregate_type = message_obj["aggregate_type"]
-        if aggregate_type is not None:
-            raise ValueError("Aggregate type must be None for Regular Measurement")
-
-        # Parse window
-        window = message_obj["window"]
-        if window is not None:
-            raise ValueError("Window must be None for Regular Measurement")
-
-        return cls.model_validate(message_obj)
 
 
 class GenericAggregateMeasurement(
@@ -332,54 +229,6 @@ class AggregateMeasurement(GenericAggregateMeasurement[AggregateMeasurementType]
             usage=usage,
         )
 
-    @classmethod
-    def from_message(cls, message: Message) -> "AggregateMeasurement":
-        message_obj: StrToAnyDict = json.loads(message.data.decode())
-
-        for key in cls.model_fields.keys():
-            if key not in message_obj:
-                raise ValueError(f"Key '{key}' did not exist in the message")
-
-        # Parse type
-        type = message_obj["type"]
-        if type != MeasurementType.AGGREGATE.value:
-            raise ValueError(
-                f"Type must be {MeasurementType.AGGREGATE} for Aggregate Measurement"
-            )
-
-        # Parse aggregate type
-        aggregate_type: OptStrToStrDict = message_obj["aggregate_type"]
-        if not (
-            isinstance(aggregate_type, dict)
-            and len(aggregate_type) == 1
-            and AggregateMeasurementType.__name__ in aggregate_type
-            and aggregate_type[AggregateMeasurementType.__name__]
-            in AggregateMeasurementType.choices()
-        ):
-            raise ValueError(
-                f"Aggregate type must be a dict with single element, "
-                f"key of '{AggregateMeasurementType.__name__}', "
-                f"and value in {AggregateMeasurementType.choices()}"
-            )
-        message_obj["aggregate_type"] = AggregateMeasurementType(
-            aggregate_type[AggregateMeasurementType.__name__]
-        )
-
-        # Parse window
-        window: OptStrToAnyDict = message_obj["window"]
-        if not (
-            isinstance(window, dict)
-            and len(window) == 1
-            and "int" in window
-            and isinstance(window["int"], int)
-        ):
-            raise ValueError(
-                "Window must be a dict with single element and key of 'int' and integer value"
-            )
-        message_obj["window"] = window["int"]
-
-        return cls.model_validate(message_obj)
-
 
 class AverageMeasurement(
     GenericAggregateMeasurement[Literal[AggregateMeasurementType.AVERAGE]]
@@ -402,54 +251,6 @@ class AverageMeasurement(
             usage=usage,
         )
 
-    @classmethod
-    def from_message(cls, message: Message) -> "AverageMeasurement":
-        message_obj: StrToAnyDict = json.loads(message.data.decode())
-
-        for key in cls.model_fields.keys():
-            if key not in message_obj:
-                raise ValueError(f"Key '{key}' did not exist in the message")
-
-        # Parse type
-        type = message_obj["type"]
-        if type != MeasurementType.AGGREGATE.value:
-            raise ValueError(
-                f"Type must be {MeasurementType.AGGREGATE} for Average Measurement"
-            )
-
-        # Parse aggregate type
-        aggregate_type: OptStrToStrDict = message_obj["aggregate_type"]
-        if not (
-            isinstance(aggregate_type, dict)
-            and len(aggregate_type) == 1
-            and AggregateMeasurementType.__name__ in aggregate_type
-            and aggregate_type[AggregateMeasurementType.__name__]
-            != AggregateMeasurementType.AVERAGE.value
-        ):
-            raise ValueError(
-                f"Aggregate type must be a dict with single element, "
-                f"key of '{AggregateMeasurementType.__name__}', "
-                f"and value of '{AggregateMeasurementType.AVERAGE.value}'"
-            )
-        message_obj["aggregate_type"] = AggregateMeasurementType(
-            aggregate_type[AggregateMeasurementType.__name__]
-        )
-
-        # Parse window
-        window: OptStrToAnyDict = message_obj["window"]
-        if not (
-            isinstance(window, dict)
-            and len(window) == 1
-            and "int" in window
-            and isinstance(window["int"], int)
-        ):
-            raise ValueError(
-                "Window must be a dict with single element and key of 'int' and integer value"
-            )
-        message_obj["window"] = window["int"]
-
-        return cls.model_validate(message_obj)
-
 
 class PeakMeasurement(
     GenericAggregateMeasurement[Literal[AggregateMeasurementType.PEAK]]
@@ -471,54 +272,6 @@ class PeakMeasurement(
             status=aggregate_status(usage.cpu.status, usage.memory.status),
             usage=usage,
         )
-
-    @classmethod
-    def from_message(cls, message: Message) -> "PeakMeasurement":
-        message_obj: StrToAnyDict = json.loads(message.data.decode())
-
-        for key in cls.model_fields.keys():
-            if key not in message_obj:
-                raise ValueError(f"Key '{key}' did not exist in the message")
-
-        # Parse type
-        type = message_obj["type"]
-        if type != MeasurementType.AGGREGATE.value:
-            raise ValueError(
-                f"Type must be {MeasurementType.AGGREGATE} for Peak Measurement"
-            )
-
-        # Parse aggregate type
-        aggregate_type: OptStrToStrDict = message_obj["aggregate_type"]
-        if not (
-            isinstance(aggregate_type, dict)
-            and len(aggregate_type) == 1
-            and AggregateMeasurementType.__name__ in aggregate_type
-            and aggregate_type[AggregateMeasurementType.__name__]
-            != AggregateMeasurementType.PEAK.value
-        ):
-            raise ValueError(
-                f"Aggregate type must be a dict with single element, "
-                f"key of '{AggregateMeasurementType.__name__}', "
-                f"and value of '{AggregateMeasurementType.PEAK.value}'"
-            )
-        message_obj["aggregate_type"] = AggregateMeasurementType(
-            aggregate_type[AggregateMeasurementType.__name__]
-        )
-
-        # Parse window
-        window: OptStrToAnyDict = message_obj["window"]
-        if not (
-            isinstance(window, dict)
-            and len(window) == 1
-            and "int" in window
-            and isinstance(window["int"], int)
-        ):
-            raise ValueError(
-                "Window must be a dict with single element and key of 'int' and integer value"
-            )
-        message_obj["window"] = window["int"]
-
-        return cls.model_validate(message_obj)
 
 
 AnyMeasurement = (
@@ -569,10 +322,6 @@ def is_peak_measurement(
 
 
 class MeasurementFactory:
-    @classmethod
-    def to_message(cls, measurement: AnyMeasurement) -> StrToAnyDict:
-        return measurement.message_obj
-
     @overload
     @classmethod
     def from_message(
@@ -617,13 +366,15 @@ class MeasurementFactory:
         aggregate_type: OptAggregateMeasurementType = None,
     ) -> AnyMeasurement:
         if type is None:
-            return BaseMeasurement.from_message(message)
+            measurement_cls = BaseMeasurement
         elif type is MeasurementType.REGULAR:
-            return RegularMeasurement.from_message(message)
+            measurement_cls = RegularMeasurement
         elif type is MeasurementType.AGGREGATE:
             if aggregate_type is None:
-                return AggregateMeasurement.from_message(message)
+                measurement_cls = AggregateMeasurement
             elif aggregate_type is AggregateMeasurementType.AVERAGE:
-                return AverageMeasurement.from_message(message)
+                measurement_cls = AverageMeasurement
             elif aggregate_type is AggregateMeasurementType.PEAK:
-                return PeakMeasurement.from_message(message)
+                measurement_cls = PeakMeasurement
+
+        return measurement_cls.model_validate_json(message.data.decode("utf-8"))

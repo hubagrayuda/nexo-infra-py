@@ -259,7 +259,7 @@ class ResourceMonitor:
             try:
                 future: Future = self.publisher.client.publish(
                     topic=topic_path,
-                    data=measurement.message_bytes,
+                    data=measurement.model_dump_json().encode(),
                     **self.application_context.model_dump(mode="json"),
                 )
                 message_id: str = future.result()
