@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexo-infra"
-version = "0.1.45"
+version = "0.1.46"
 description = "Infra package for Nexo"
 authors = [
     { name = "Agra Bima Yuda", email = "hub.agrayuda@gmail.com" }
@@ -51,7 +51,7 @@ dependencies = [
     "nexo-crypto>=0.0.10",
     "nexo-enums>=0.0.20",
     "nexo-logging>=0.0.10",
-    "nexo-schemas>=0.1.25",
+    "nexo-schemas>=0.1.26",
     "nexo-types>=0.0.10",
     "nexo-utils>=0.0.10",
     "nodeenv>=1.9.1",
